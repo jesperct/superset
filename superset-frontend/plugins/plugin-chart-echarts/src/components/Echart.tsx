@@ -280,12 +280,37 @@ function Echart(
 
       const notMerge = !isDashboardRefreshing;
       chartRef.current?.dispatchAction({ type: 'hideTip' });
+      // setOption(notMerge:true) replaces the dataZoom config, dropping any
+      // range the user has engaged. Preserve it across the call.
+      const previousZoom = notMerge
+        ? (chartRef.current?.getOption() as any)?.dataZoom
+        : undefined;
       chartRef.current?.setOption(themedEchartOptions, {
         notMerge,
         replaceMerge: notMerge ? undefined : ['series'],
         // lazyUpdate defers render, causing tooltip crashes on stale shapes (#39247)
         lazyUpdate: false,
       });
+      if (previousZoom?.length) {
+        const batch = previousZoom
+          .map((dz: any, dataZoomIndex: number) => ({
+            dataZoomIndex,
+            start: dz.start,
+            end: dz.end,
+            startValue: dz.startValue,
+            endValue: dz.endValue,
+          }))
+          .filter(
+            (b: any) =>
+              b.start !== undefined ||
+              b.end !== undefined ||
+              b.startValue !== undefined ||
+              b.endValue !== undefined,
+          );
+        if (batch.length) {
+          chartRef.current?.dispatchAction({ type: 'dataZoom', batch });
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isDashboardRefreshing intentionally excluded to prevent extra setOption calls
   }, [didMount, echartOptions, eventHandlers, zrEventHandlers, theme, vizType]);
